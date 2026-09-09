@@ -1,19 +1,68 @@
 -- ---------------------------------------------------------------------------
--- CAPA LIMPIA: imputación puntual y métricas derivadas.
+-- CAPA LIMPIA: malla horaria, imputación puntual y métricas derivadas.
 --
 -- Aquí se materializa la decisión sobre valores erróneos que pide el punto 3a:
---   - Duplicados, centinelas y fuera de rango  -> DESCARTAR
---   - Hueco aislado de exactamente una hora    -> IMPUTAR (interpolación)
---   - Hora de cobertura parcial                -> CONSERVAR marcada
+--   - Duplicados, centinelas y fuera de rango    -> DESCARTAR
+--   - Hora ausente aislada, con vecinos válidos  -> IMPUTAR (interpolación)
+--   - Hueco de más de una hora                   -> DEJAR VACÍO
+--   - Hora de cobertura parcial                  -> CONSERVAR marcada
+--
+-- La malla horaria es lo que hace posible la primera decisión. La API sólo
+-- devuelve las horas que midió: un corte de energía de tres horas no llega
+-- como tres filas malas, llega como tres filas que no existen. Sin generar la
+-- serie horaria esperada, esos huecos son invisibles y no se pueden contar ni
+-- reportar. Con 2.650 horas ausentes sobre 58.179 esperadas en la primera
+-- carga, esta es la dimensión de calidad dominante en esta fuente.
 -- ---------------------------------------------------------------------------
+
+-- Serie horaria esperada por sensor, de su primera a su última medición.
+CREATE OR REPLACE TABLE {stg}.hourly_spine AS
+WITH rango AS (
+    SELECT
+        sensor_id,
+        any_value(location_id)  AS location_id,
+        any_value(parameter)    AS parameter,
+        min(datetime_utc)       AS desde,
+        max(datetime_utc)       AS hasta
+    FROM {stg}.measurements
+    WHERE NOT flag_duplicado
+      AND datetime_utc IS NOT NULL
+    GROUP BY sensor_id
+)
+SELECT
+    r.sensor_id,
+    r.location_id,
+    r.parameter,
+    unnest(generate_series(r.desde, r.hasta, INTERVAL 1 HOUR)) AS datetime_utc
+FROM rango r;
+
+
+-- Serie completa: cada hora esperada, tenga o no medición.
+CREATE OR REPLACE TABLE {stg}.measurements_spined AS
+SELECT
+    e.sensor_id,
+    e.location_id,
+    e.parameter,
+    e.datetime_utc,
+    m.value_original,
+    m.value_std,
+    m.units_original,
+    m.fue_convertido,
+    m.coverage_pct,
+    m.flag_cobertura_baja,
+    m.run_id,
+    m.sensor_id IS NULL                              AS flag_hora_ausente,
+    coalesce(m.es_valido, FALSE)                     AS es_valido
+FROM {stg}.hourly_spine e
+LEFT JOIN {stg}.measurements m
+       ON m.sensor_id    = e.sensor_id
+      AND m.datetime_utc = e.datetime_utc
+      AND NOT m.flag_duplicado;
+
 
 CREATE OR REPLACE TABLE {stg}.measurements_clean AS
 
-WITH sin_duplicados AS (
-    SELECT * FROM {stg}.measurements WHERE NOT flag_duplicado
-),
-
-vecinos AS (
+WITH vecinos AS (
     -- Último y próximo valor VÁLIDO de la serie del sensor, ignorando los
     -- huecos. IGNORE NULLS hace que la ventana salte las filas inválidas.
     SELECT
@@ -34,7 +83,7 @@ vecinos AS (
             PARTITION BY sensor_id ORDER BY datetime_utc
             ROWS BETWEEN 1 FOLLOWING AND UNBOUNDED FOLLOWING
         ) AS ts_siguiente
-    FROM sin_duplicados s
+    FROM {stg}.measurements_spined s
 ),
 
 imputado AS (
@@ -58,16 +107,17 @@ SELECT
     datetime_utc,
     CAST(datetime_utc AS DATE)                       AS fecha,
     extract('hour' FROM datetime_utc)                AS hora_utc,
-    units_std,
+    'ug/m3'                                          AS units_std,
     value_original,
     CASE
         WHEN es_valido   THEN value_std
         WHEN es_imputado THEN (valor_anterior + valor_siguiente) / 2.0
     END                                              AS valor,
     es_imputado,
-    fue_convertido,
+    flag_hora_ausente,
+    coalesce(fue_convertido, FALSE)                  AS fue_convertido,
     coverage_pct,
-    flag_cobertura_baja,
+    coalesce(flag_cobertura_baja, FALSE)             AS flag_cobertura_baja,
     run_id
 FROM imputado
 WHERE es_valido OR es_imputado;
@@ -91,7 +141,7 @@ CREATE OR REPLACE TABLE {stg}.measurements_enriched AS
 WITH estadisticas_base AS (
     SELECT
         sensor_id,
-        avg(valor)    AS media_historica,
+        avg(valor)         AS media_historica,
         stddev_samp(valor) AS desvio_historico
     FROM {stg}.measurements_clean
     GROUP BY sensor_id

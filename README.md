@@ -169,9 +169,31 @@ docs/dq_report.md          Tabla de calidad generada, para pegar en el informe
 
 ## Decisiones de calidad de datos
 
+### Dónde está realmente la suciedad en esta fuente
+
+La primera carga reveló algo que conviene decir explícitamente: **OpenAQ ya filtra
+en la capa de agregación horaria**. El endpoint `/hours` sólo devuelve horas que
+midió y validó, así que `coverage.percentComplete` llega en 100 % en todas las
+filas y no aparece un solo valor centinela, negativo o fuera de rango físico.
+
+Las reglas clásicas de validez existen igual en el pipeline y reportan cero. Eso
+no es redundante: documenta una propiedad de la fuente, y protege el día que se
+sume otro proveedor que sí entregue crudo.
+
+El problema real de esta fuente es la **completitud**. Un corte de tres horas no
+llega como tres filas malas: llega como tres filas que no existen. Por eso el
+pipeline genera una malla horaria explícita por sensor (`stg.hourly_spine`) y
+compara contra ella. Sin esa malla, 2.650 horas ausentes serían invisibles.
+
+De esas 2.650 horas, sólo 5 son huecos aislados de una hora. El resto son bloques
+largos —caídas de sensor, no lecturas sueltas perdidas—, lo que confirma que
+interpolarlos habría sido inventar series enteras.
+
 | Situación | Decisión | Justificación |
 |---|---|---|
 | Fila duplicada por reingesta | Descartar, conservar la más reciente | La API corrige valores recientes; gana la última versión. |
+| Hora ausente en la serie esperada | Imputar sólo si el hueco es de 1 h | Los bloques largos son caídas de sensor; rellenarlos fabricaría datos. |
+| Sensor registrado pero mudo | Excluir y documentar | 53 de 80 sensores seleccionados no reportan; casi todos de O₃ y NO₂. |
 | Valor centinela (`-999`) | Descartar | Es un hueco disfrazado de número; promediarlo hunde la media. |
 | Valor fuera del rango físico | Descartar | Un PM2.5 de 5.000 µg/m³ es una falla de sensor, no un evento. |
 | Hueco aislado de 1 hora | Imputar por interpolación | Preserva la continuidad de la serie sin inventar tramos largos. |
