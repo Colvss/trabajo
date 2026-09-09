@@ -1,0 +1,43 @@
+name: Pipeline calidad del aire
+
+# La automatización del punto 2a. El historial de esta pestaña en GitHub es la
+# evidencia que se muestra en la defensa oral.
+on:
+  schedule:
+    # Cada 6 horas. Los datos de OpenAQ son horarios, así que corridas más
+    # frecuentes gastarían rate limit sin agregar información.
+    - cron: "0 */6 * * *"
+  workflow_dispatch:        # permite dispararlo a mano para la demo
+  push:
+    branches: [main]
+    paths: ["src/**", "sql/**", "config.yml"]
+
+jobs:
+  etl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Ejecutar pipeline
+        env:
+          OPENAQ_API_KEY: ${{ secrets.OPENAQ_API_KEY }}
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+        run: python -m src.run_pipeline
+
+      - name: Publicar reporte de calidad
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dq-report-${{ github.run_number }}
+          path: docs/dq_report.*
+          if-no-files-found: warn

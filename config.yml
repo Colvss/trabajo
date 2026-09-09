@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------------
+# Configuración única del pipeline.
+# Todo lo que un tercero necesita cambiar para reproducir el trabajo con otro
+# país o contaminante está en este archivo. No hay valores mágicos en el código.
+# ---------------------------------------------------------------------------
+
+source:
+  base_url: https://api.openaq.org/v3
+
+  # País a analizar. ISO 3166-1 alfa-2 (CL=Chile, AR=Argentina, MX=México...).
+  country_iso: CL
+
+  # Nombre del parámetro de query para filtrar por país.
+  # Confirmar con `python -m src.explore` cuál acepta la API.
+  country_param: iso
+
+  # Contaminantes a ingerir, con los nombres que usa OpenAQ.
+  # pm25 y pm10 son los de mejor cobertura en Latinoamérica.
+  parameters: [pm25, pm10, o3, no2]
+
+  # Techo de estaciones a seguir. Cada estación son varios sensores y cada
+  # sensor al menos un request: subir esto con cuidado por el rate limit.
+  max_locations: 20
+
+  # Días de histórico en la primera corrida (sin datos previos en la base).
+  backfill_days: 90
+
+  # Registros por página. La API acepta hasta 1000.
+  page_limit: 1000
+
+  # Nombres de los parámetros de rango temporal.
+  # Confirmar con `python -m src.explore`.
+  datetime_from_param: datetime_from
+  datetime_to_param: datetime_to
+
+  # Límite documentado: 60 req/min. Nos quedamos abajo para dejar margen.
+  requests_per_minute: 45
+
+quality:
+  # Valores centinela que los proveedores usan para decir "sin dato".
+  # No son mediciones: son huecos disfrazados de número.
+  sentinel_values: [-999, -9999, 999, 999999]
+
+  # Rangos físicamente plausibles. Fuera de esto el dato es un error de sensor,
+  # no una medición extrema. Unidad de referencia: µg/m³.
+  plausible_range:
+    pm25: [0, 1000]
+    pm10: [0, 2000]
+    o3: [0, 1000]
+    no2: [0, 1000]
+
+  # Cobertura horaria mínima aceptable (% de la hora con datos reales).
+  # El endpoint /hours reporta esto en el objeto `coverage`.
+  min_coverage_pct: 50
+
+  # El dato más reciente no debería tener más de esta antigüedad.
+  freshness_hours: 48
+
+# Guías OMS 2021 para media de 24 horas, en µg/m³.
+# Base de las métricas derivadas del punto 3c.
+who_guidelines_24h:
+  pm25: 15
+  pm10: 45
+  no2: 25
+
+# Conversión de gases de ppm a µg/m³ a 25 °C y 1 atm:
+#   µg/m³ = ppm * 1000 * (peso_molecular / 24.45)
+molecular_weights:
+  o3: 48.00
+  no2: 46.01
+  so2: 64.07
+  co: 28.01
+
+database:
+  # MotherDuck: "md:airq"   |   Local: "airq.duckdb"
+  target: "md:airq"
+  schemas:
+    raw: raw
+    staging: stg
+    mart: mart
