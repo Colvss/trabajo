@@ -129,6 +129,40 @@ que las transformaciones producen lo esperado. La regla `frescura_del_dato`
 siempre aparece fallando en esta prueba porque compara contra la hora actual y
 los datos sintéticos tienen fecha fija.
 
+## Informe y presentación
+
+Los documentos de entrega **no se escriben a mano**: se generan desde la base
+analítica, de modo que ninguna cifra pueda quedar desactualizada respecto del
+pipeline. Si los datos cambian, se reejecutan estos scripts y los documentos
+quedan consistentes.
+
+```bash
+.venv\Scripts\python.exe scripts/figuras.py
+```
+
+```bash
+.venv\Scripts\python.exe scripts/informe.py
+```
+
+```bash
+.venv\Scripts\python.exe scripts/presentacion.py
+```
+
+| Script | Produce |
+|---|---|
+| `scripts/figuras.py` | `docs/figuras/*.png` — las 5 figuras del informe |
+| `scripts/informe.py` | `docs/Informe.docx` — 5 figuras y 8 tablas numeradas |
+| `scripts/presentacion.py` | `docs/Presentacion.pptx`, `docs/Presentacion.pdf` y `docs/Guion.docx` |
+
+Antes de entregar hay que completar el bloque `informe:` de `config.yml` con el
+nombre del autor y la institución, que alimentan las portadas.
+
+Estos scripts requieren dependencias adicionales que el pipeline no necesita:
+
+```bash
+pip install -r requirements-docs.txt
+```
+
 ## Desarrollo sin MotherDuck
 
 Todo el pipeline funciona contra un archivo local, sin token ni red:
