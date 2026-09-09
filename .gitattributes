@@ -1,0 +1,22 @@
+# Normalizacion de fin de linea para archivos de texto.
+* text=auto
+
+# Binarios: git NUNCA debe tocarles los saltos de linea.
+# Sin esto, con core.autocrlf=true un clone en Windows inyecta bytes CR en
+# los entregables y los deja corruptos, aunque el commit haya sido inocuo.
+*.pdf   binary
+*.docx  binary
+*.pptx  binary
+*.xlsx  binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.duckdb binary
+
+# El SQL y los scripts se normalizan a LF: el pipeline corre en Linux.
+*.sql  text eol=lf
+*.py   text eol=lf
+*.yml  text eol=lf
+*.md   text eol=lf
