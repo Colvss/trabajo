@@ -61,6 +61,10 @@ if diario.empty:
     st.warning("La capa mart está vacía. Ejecutá el pipeline primero.")
     st.stop()
 
+# DuckDB entrega DATE como datetime64; pandas 3 no admite compararlo contra
+# objetos date, así que unificamos el tipo una sola vez y acá.
+diario["fecha"] = pd.to_datetime(diario["fecha"])
+
 # --- Filtros ---------------------------------------------------------------
 with st.sidebar:
     st.header("Filtros")
@@ -68,7 +72,8 @@ with st.sidebar:
     contaminante = st.selectbox("Contaminante", contaminantes)
 
     sub = diario[diario["contaminante"] == contaminante]
-    fmin, fmax = sub["fecha"].min(), sub["fecha"].max()
+    # st.date_input trabaja con date; la comparación posterior con Timestamp.
+    fmin, fmax = sub["fecha"].min().date(), sub["fecha"].max().date()
     rango = st.date_input("Rango de fechas", value=(fmin, fmax),
                           min_value=fmin, max_value=fmax)
     if isinstance(rango, tuple) and len(rango) == 2:
@@ -80,8 +85,8 @@ with st.sidebar:
     elegidas = st.multiselect("Estaciones", estaciones, default=estaciones[:6])
 
 f = sub[
-    (sub["fecha"] >= pd.Timestamp(desde).date())
-    & (sub["fecha"] <= pd.Timestamp(hasta).date())
+    (sub["fecha"] >= pd.Timestamp(desde))
+    & (sub["fecha"] <= pd.Timestamp(hasta))
 ]
 if elegidas:
     f = f[f["estacion"].isin(elegidas)]
