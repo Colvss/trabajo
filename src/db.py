@@ -24,7 +24,15 @@ def connect() -> duckdb.DuckDBPyConnection:
                 "  Conseguilo en https://app.motherduck.com -> Settings -> Access Tokens\n"
                 "  O usá la base local: DB_TARGET=airq.duckdb"
             )
-        con = duckdb.connect(f"{DB_TARGET}?motherduck_token={MOTHERDUCK_TOKEN}")
+        # Conectar directo a "md:airq" falla si esa base todavía no existe en la
+        # cuenta. Nos conectamos a la raíz, la creamos si hace falta y recién
+        # ahí la usamos: así un tercero que clone el repo no tiene que crearla
+        # a mano antes de la primera corrida.
+        nombre = DB_TARGET[3:].strip()
+        con = duckdb.connect(f"md:?motherduck_token={MOTHERDUCK_TOKEN}")
+        if nombre:
+            con.execute(f'CREATE DATABASE IF NOT EXISTS "{nombre}"')
+            con.execute(f'USE "{nombre}"')
     else:
         con = duckdb.connect(DB_TARGET)
     ensure_schema(con)

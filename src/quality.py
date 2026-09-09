@@ -89,12 +89,47 @@ def _checks() -> list[dict]:
         },
         {
             "dimension": "Completitud",
+            "check_name": "horas_ausentes",
+            "rule": "Hora esperada en la serie del sensor que la fuente nunca reportó",
+            "afectados": f"SELECT count(*) FROM {stg}.measurements_spined WHERE flag_hora_ausente",
+            "total": f"SELECT count(*) FROM {stg}.measurements_spined",
+            "action_taken": "Imputar si el hueco es de 1 h; dejar vacío si es mayor",
+            "max_pct": 15.0,
+        },
+        {
+            "dimension": "Completitud",
             "check_name": "registros_imputados",
             "rule": "Hueco aislado de 1 hora entre dos valores válidos",
             "afectados": f"SELECT count(*) FROM {stg}.measurements_clean WHERE es_imputado",
             "total": f"SELECT count(*) FROM {stg}.measurements_clean",
             "action_taken": "Imputar por interpolación lineal entre vecinos",
             "max_pct": 10.0,
+        },
+        {
+            "dimension": "Integridad",
+            "check_name": "sensores_sin_datos",
+            "rule": "Sensor listado por la API que no devolvió ninguna medición",
+            "afectados": f"""
+                SELECT count(*) FROM {raw}.sensors s
+                LEFT JOIN (SELECT DISTINCT sensor_id FROM {raw}.measurements) m
+                       ON m.sensor_id = s.sensor_id
+                WHERE m.sensor_id IS NULL
+            """,
+            "total": f"SELECT count(*) FROM {raw}.sensors",
+            "action_taken": "Excluir del análisis y documentar el contaminante afectado",
+            "max_pct": None,
+        },
+        {
+            "dimension": "Exactitud",
+            "check_name": "valores_atipicos",
+            "rule": "|z-score| > 5 respecto de la media histórica del propio sensor",
+            "afectados": f"""
+                SELECT count(*) FROM {stg}.measurements_enriched
+                WHERE abs(z_score) > 5
+            """,
+            "total": f"SELECT count(*) FROM {stg}.measurements_enriched",
+            "action_taken": "Conservar: pueden ser episodios reales de contaminación",
+            "max_pct": None,
         },
         {
             "dimension": "Consistencia",
@@ -250,10 +285,15 @@ def _write_artifacts(results: list[dict], run_id: str, checked_at) -> None:
         "| Dimensión | Regla aplicada | Registros afectados | % | Acción tomada |",
         "|---|---|---:|---:|---|",
     ]
+    # Las barras dentro del texto de una regla (por ejemplo |z-score|) partirían
+    # la fila en columnas extra al renderizar el Markdown.
+    def esc(texto) -> str:
+        return str(texto).replace("|", "\\|")
+
     for r in results:
         lineas.append(
-            f"| {r['dimension']} | {r['rule']} | {r['records_affected']:,} "
-            f"| {r['pct_affected']:.2f}% | {r['action_taken']} |"
+            f"| {esc(r['dimension'])} | {esc(r['rule'])} | {r['records_affected']:,} "
+            f"| {r['pct_affected']:.2f}% | {esc(r['action_taken'])} |"
         )
     (DOCS / "dq_report.md").write_text("\n".join(lineas) + "\n", encoding="utf-8")
     print(f"  artefactos escritos en docs/dq_report.json y docs/dq_report.md")
