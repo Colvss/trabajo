@@ -243,6 +243,10 @@ def run(con, run_id: str, write_artifacts: bool = True) -> list[dict]:
             f"{afectados:>8} / {total:<8} ({pct:>6.2f}%)"
         )
 
+    # Reprocesar la calidad de una corrida ya evaluada debe reemplazar su
+    # resultado, no acumularlo: si no, el dashboard muestra cada regla repetida.
+    con.execute(f"DELETE FROM {SCHEMA_MART}.dq_report WHERE run_id = ?", [run_id])
+
     con.executemany(
         f"INSERT INTO {SCHEMA_MART}.dq_report VALUES (?,?,?,?,?,?,?,?,?,?)",
         [
