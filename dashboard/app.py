@@ -21,9 +21,14 @@ st.set_page_config(page_title="Calidad del aire", page_icon="🌫️", layout="w
 
 # En Streamlit Cloud los secretos llegan por st.secrets; el resto del código
 # sólo conoce variables de entorno.
-for clave in ("MOTHERDUCK_TOKEN", "OPENAQ_API_KEY", "DB_TARGET"):
-    if clave not in os.environ and clave in st.secrets:
-        os.environ[clave] = st.secrets[clave]
+# En local no existe secrets.toml y el acceso a st.secrets puede lanzar
+# excepción; ahí las credenciales llegan por .env y no hay nada que copiar.
+try:
+    for clave in ("MOTHERDUCK_TOKEN", "OPENAQ_API_KEY", "DB_TARGET"):
+        if clave not in os.environ and clave in st.secrets:
+            os.environ[clave] = st.secrets[clave]
+except Exception:
+    pass
 
 from src.config import SCHEMA_MART  # noqa: E402
 from src.db import connect  # noqa: E402

@@ -174,7 +174,9 @@ def _checks() -> list[dict]:
     ]
 
 
-def run(con, run_id: str) -> list[dict]:
+def run(con, run_id: str, write_artifacts: bool = True) -> list[dict]:
+    """`write_artifacts=False` evita que una corrida de prueba pise los
+    archivos de docs/ con cifras que no vienen de datos reales."""
     print("\n[3/3] CALIDAD DE DATOS")
     checked_at = dt.datetime.now(dt.timezone.utc).replace(tzinfo=None)
     results = []
@@ -218,7 +220,8 @@ def run(con, run_id: str) -> list[dict]:
         ],
     )
 
-    _write_artifacts(results, run_id, checked_at)
+    if write_artifacts:
+        _write_artifacts(results, run_id, checked_at)
 
     fallas = [r for r in results if not r["passed"]]
     if fallas:

@@ -81,8 +81,12 @@ SELECT
     n.value_original IS NULL                         AS flag_nulo,
     n.value_original IN (SELECT value FROM {stg}.sentinel_values)
                                                      AS flag_centinela,
+    -- Precedencia: un centinela ya quedó contabilizado por su propia regla.
+    -- Sin esta exclusión, -999 se contaría dos veces y los totales por regla
+    -- del informe sumarían más que los descartes reales.
     (r.min_value IS NOT NULL
      AND n.value_std IS NOT NULL
+     AND n.value_original NOT IN (SELECT value FROM {stg}.sentinel_values)
      AND (n.value_std < r.min_value OR n.value_std > r.max_value))
                                                      AS flag_fuera_rango,
     (n.coverage_pct IS NOT NULL AND n.coverage_pct < {min_coverage})

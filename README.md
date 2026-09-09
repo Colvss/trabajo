@@ -113,6 +113,22 @@ python -m src.run_pipeline
 streamlit run dashboard/app.py
 ```
 
+## Prueba de humo
+
+Valida las transformaciones y las 13 reglas de calidad con datos sintéticos,
+sin credenciales ni acceso a la API. Inyecta problemas conocidos —un duplicado,
+un centinela, un valor fuera de rango y un hueco de una hora— y verifica que el
+pipeline los detecte con los conteos exactos esperados.
+
+```bash
+.venv\Scripts\python.exe tests/smoke_test.py
+```
+
+Sirve como verificación de carga (punto 2c): demuestra con un caso controlado
+que las transformaciones producen lo esperado. La regla `frescura_del_dato`
+siempre aparece fallando en esta prueba porque compara contra la hora actual y
+los datos sintéticos tienen fecha fija.
+
 ## Desarrollo sin MotherDuck
 
 Todo el pipeline funciona contra un archivo local, sin token ni red:
@@ -147,6 +163,7 @@ sql/01_staging.sql         Tipado, normalización de unidades, banderas
 sql/02_clean.sql           Descarte, imputación y métricas derivadas
 sql/03_marts.sql           Tablas de consumo del dashboard
 dashboard/app.py           Streamlit
+tests/smoke_test.py        Prueba de humo con datos sintéticos, sin credenciales
 docs/dq_report.md          Tabla de calidad generada, para pegar en el informe
 ```
 
@@ -161,6 +178,11 @@ docs/dq_report.md          Tabla de calidad generada, para pegar en el informe
 | Hueco de más de 1 hora | Dejar vacío | Rellenarlo sería fabricar datos que nadie midió. |
 | Hora de cobertura parcial | Conservar marcada | Informativa, pero se excluye del criterio de excedencia. |
 | Gas en ppm/ppb | Convertir a µg/m³ | Sin esto se promedian escalas que difieren en 1.000×. |
+
+Las reglas se aplican con **precedencia**, no de forma independiente: un valor
+centinela como `-999` también cae fuera del rango físico, pero se contabiliza
+sólo bajo su propia regla. Sin esa exclusión, los totales por regla sumarían más
+que los descartes reales y la tabla del informe sería engañosa.
 
 Los conteos exactos de cada regla se generan en cada corrida y quedan en
 `docs/dq_report.md` y en la tabla `mart.dq_report`.
