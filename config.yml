@@ -71,14 +71,6 @@ molecular_weights:
   so2: 64.07
   co: 28.01
 
-# Datos de portada del informe y la presentación.
-# COMPLETAR antes de entregar: se usan en docs/Informe.docx y docs/Presentacion.*
-informe:
-  autor: ""
-  curso: "Data Pipeline y Automatización"
-  institucion: "Universidad de las Américas"
-  repositorio: "github.com/Colvss/trabajo"
-
 database:
   # MotherDuck: "md:airq"   |   Local: "airq.duckdb"
   target: "md:airq"
