@@ -74,9 +74,9 @@ molecular_weights:
 # Datos de portada del informe y la presentación.
 # COMPLETAR antes de entregar: se usan en docs/Informe.docx y docs/Presentacion.*
 informe:
-  autor: "COMPLETAR: tu nombre"
+  autor: ""
   curso: "Data Pipeline y Automatización"
-  institucion: ""
+  institucion: "Universidad de las Américas"
   repositorio: "github.com/Colvss/trabajo"
 
 database:
